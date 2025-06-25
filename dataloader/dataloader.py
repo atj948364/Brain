@@ -69,8 +69,8 @@ def prepare_dataloaders(
         download_from_gdrive(gdrive_url, dataset_zip_path)
         # download_dataset_kaggle(dataset_name, save_path=dataset_path)
 
-    if not os.listdir(dataset_path):
-        unzip_dataset(dataset_zip_path, dataset_path)
+    # if not os.listdir(dataset_path):
+    #     unzip_dataset(dataset_zip_path, dataset_path)
 
     # Step 2: Retrieve patient list，获取患者列表并缓存
     patient_list = get_patient_list(dataset_path, save_path)
@@ -79,7 +79,7 @@ def prepare_dataloaders(
     train_list, valid_list, test_list = split_dataset(
         patient_list, train_ratio=train_ratio, valid_ratio=valid_ratio, seed=seed
     )
-
+    # print(f"dataset_path:--{dataset_path}")
     # Step 4: Get image paths，获取各集合的图像和掩码路径
     X_train, Y_train = get_image_paths(dataset_path, train_list)
     X_valid, Y_valid = get_image_paths(dataset_path, valid_list)

@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from model import UNet_with_Residual, AttentionUNet
+from model import UNet_with_Residual, AttentionUNet, SwinUNet
 from torchvision import transforms
 
 # 设置中文字体支持
@@ -17,12 +17,12 @@ def get_args():
     parser = argparse.ArgumentParser(description="脑肿瘤分割模型推理脚本")
     parser.add_argument("--input", "-i", type=str, default=r"input/TCGA_HT_A616_19991226",
                         help="输入图片路径或文件夹")
-    parser.add_argument("--output", "-o", type=str, default="output/Attention_unet/TCGA_HT_A616_19991226",
+    parser.add_argument("--output", "-o", type=str, default="output/SwinUNet/TCGA_HT_A616_19991226",
                         help="输出结果保存路径")
-    parser.add_argument("--weights", "-w", type=str, default="weights/Attention_unet/best_model.pt",
+    parser.add_argument("--weights", "-w", type=str, default="weights/SwinUNet/best_model.pt",
                         help="模型权重文件路径")
-    parser.add_argument("--model", type=str, default="Attention_unet",
-                        choices=["Unet_Modified", "Unet_Basic","Attention_unet"],
+    parser.add_argument("--model", type=str, default="SwinUNet",
+                        choices=[ "Unet_Basic","UNet_with_Residual", "AttentionUNet", "SwinUNet"],
                         help="模型类型")
     parser.add_argument("--threshold", type=float, default=0.5,
                         help="二值化阈值")
@@ -33,10 +33,12 @@ def get_args():
 
 def load_model(weights_path, model_type, device):
     """加载训练好的模型"""
-    if model_type == "Unet_Modified":
+    if model_type == "UNet_with_Residual":
         model = UNet_with_Residual()
-    elif model_type == "Attention_unet":  # 根据配置选择模型
+    elif model_type == "AttentionUNet":  # 根据配置选择模型
         model = AttentionUNet()
+    elif model_type == "SwinUNet": # 根据配置选择模型
+        model = SwinUNet()
     else:
         model = torch.hub.load(
             "mateuszbuda/brain-segmentation-pytorch",

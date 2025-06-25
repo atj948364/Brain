@@ -158,8 +158,12 @@ def get_image_paths(dataset_path, patient_list):
     """
     X, Y = [], []
     for patient in patient_list:
+        # # print(f"patient-----------:{patient}")
+        # patient_dir = os.path.join(
+        #     dataset_path, "lgg-mri-segmentation", "kaggle_3m", patient
+        # )
         patient_dir = os.path.join(
-            dataset_path, "lgg-mri-segmentation", "kaggle_3m", patient
+            dataset_path, "kaggle_3m", patient
         )
         images = os.listdir(patient_dir)
 

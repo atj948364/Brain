@@ -2,7 +2,7 @@ from omegaconf import OmegaConf
 import os
 import torch
 from dataloader import prepare_dataloaders
-from model import UNet_with_Residual, AttentionUNet
+from model import UNet_with_Residual, AttentionUNet, SwinUNet
 from train import train_and_evaluate,print_model_summary  # 新增导入 print_model_summary
 
 
@@ -42,10 +42,12 @@ def main():
     print(f"测试集样本数量: {test_size}")
     print(f"模型名称: {config.training.model}")
 
-    if config.training.model == "Unet_Modified": # 根据配置选择模型
+    if config.training.model == "UNet_with_Residual": # 根据配置选择模型
         model = UNet_with_Residual()
-    elif config.training.model == "Attention_unet": # 根据配置选择模型
+    elif config.training.model == "AttentionUNet": # 根据配置选择模型
         model = AttentionUNet()
+    elif config.training.model == "SwinUNet": # 根据配置选择模型
+        model = SwinUNet()
     else:
         model = torch.hub.load( # 从 PyTorch Hub 加载标准 U-Net 模型
             "mateuszbuda/brain-segmentation-pytorch",
@@ -57,7 +59,7 @@ def main():
         )
     # 从数据集中获取一个样本，得到输入尺寸
     sample_input, _ = next(iter(dataloaders["train"]))
-    input_size = tuple(sample_input.shape[1:])
+    input_size = tuple(sample_input.shape[1:])  # (C, H, W)
     # 打印模型结构和参数量
     # input_size = (3, 224, 224)  # 假设输入尺寸为 (3, 224, 224)，可根据实际情况修改
     print_model_summary(model, input_size, device)

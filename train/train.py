@@ -1,4 +1,4 @@
-from .utils import Dice_coef, Jaccard_coef, save_results
+from .utils import Dice_coef, Jaccard_coef, Accuracy, Recall, save_results
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,7 +9,8 @@ import copy
 from tqdm import tqdm
 from plot import plot_metrics
 import os
-from torchsummary import summary  # 新增导入
+# from torchsummary import summary  # 新增导入
+from torchinfo import summary  # 替换 torchsummary
 
 def count_parameters(model):
     """计算模型参数量"""
@@ -21,7 +22,9 @@ def print_model_summary(model, input_size, device):
     model.to(device)
     # 将 torch.device 对象转换为字符串
     device_str = str(device)
-    summary(model, input_size=input_size, device=device_str)
+    # 添加 batch_size = 1 作为第一维
+    summary(model, input_size=(1,) + input_size, device=device.type)
+    # summary(model, input_size=input_size, device=device_str)
     print(f"总参数量: {count_parameters(model):,}")
     print("-" * 50)
 
@@ -47,11 +50,17 @@ def train_model(
     valid_epoch_dices = []
     train_epoch_jaccs = []
     valid_epoch_jaccs = []
+    train_epoch_accuracies = []
+    valid_epoch_accuracies = []
+    train_epoch_recalls = []
+    valid_epoch_recalls = []
 
     epochs_lr_list = []
 
     dice_cf = Dice_coef()
     jaccard_cf = Jaccard_coef()
+    accuracy_cf = Accuracy()
+    recall_cf = Recall()
 
     for epoch in range(num_epochs):
         print("Epoch {}/{}".format(epoch + 1, num_epochs))
@@ -67,6 +76,8 @@ def train_model(
             running_loss = 0.0
             running_dice = 0.0
             running_jacc = 0.0
+            running_accuracy = 0.0
+            running_recall = 0.0
 
             # Iterate over data.
             for inputs, labels in tqdm(dataloaders[phase]):
@@ -84,6 +95,8 @@ def train_model(
                     loss = criterion(outputs, labels)
                     jacc = jaccard_cf(torch.round(outputs), labels)
                     dice = dice_cf(torch.round(outputs), labels)
+                    accuracy = accuracy_cf(torch.round(outputs), labels)
+                    recall = recall_cf(torch.round(outputs), labels)
 
                     if phase == "train":
                         loss.backward()
@@ -93,6 +106,8 @@ def train_model(
                 running_loss += loss.item() * inputs.size(0)
                 running_dice += dice.item() * inputs.size(0)
                 running_jacc += jacc.item() * inputs.size(0)
+                running_accuracy += accuracy.item() * inputs.size(0)
+                running_recall += recall.item() * inputs.size(0)
 
             if phase == "train":
                 scheduler.step()
@@ -101,10 +116,17 @@ def train_model(
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_dice = running_dice / dataset_sizes[phase]
             epoch_jacc = running_jacc / dataset_sizes[phase]
+            epoch_accuracy = running_accuracy / dataset_sizes[phase]
+            epoch_recall = running_recall / dataset_sizes[phase]
 
+            # print(
+            #     "{}:\t Loss: {:.4f}\t Dice: {:.4f}\t Jacc: {:.4f}".format(
+            #         phase, epoch_loss, epoch_dice, epoch_jacc
+            #     )
+            # )
             print(
-                "{}:\t Loss: {:.4f}\t Dice: {:.4f}\t Jacc: {:.4f}".format(
-                    phase, epoch_loss, epoch_dice, epoch_jacc
+                "{}:\t Loss: {:.4f}\t Dice: {:.4f}\t Jacc: {:.4f}\t Accuracy: {:.4f}\t Recall: {:.4f}".format(
+                    phase, epoch_loss, epoch_dice, epoch_jacc, epoch_accuracy, epoch_recall
                 )
             )
 
@@ -112,11 +134,15 @@ def train_model(
                 train_epoch_losses.append(epoch_loss)
                 train_epoch_dices.append(epoch_dice)
                 train_epoch_jaccs.append(epoch_jacc)
+                train_epoch_accuracies.append(epoch_accuracy)
+                train_epoch_recalls.append(epoch_recall)
 
             elif phase == "val":
                 valid_epoch_losses.append(epoch_loss)
                 valid_epoch_dices.append(epoch_dice)
                 valid_epoch_jaccs.append(epoch_jacc)
+                valid_epoch_accuracies.append(epoch_accuracy)
+                valid_epoch_recalls.append(epoch_recall)
 
             epochs_lr_list.append(optimizer.param_groups[0]["lr"])
 
@@ -149,10 +175,12 @@ def train_model(
     epoch_losses = {"train": train_epoch_losses, "val": valid_epoch_losses}
     epoch_dices = {"train": train_epoch_dices, "val": valid_epoch_dices}
     epoch_jaccs = {"train": train_epoch_jaccs, "val": valid_epoch_jaccs}
+    epoch_accuracies = {"train": train_epoch_accuracies, "val": valid_epoch_accuracies}
+    epoch_recalls = {"train": train_epoch_recalls, "val": valid_epoch_recalls}
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, epoch_losses, epoch_dices, epoch_jaccs
+    return model, epoch_losses, epoch_dices, epoch_jaccs, epoch_accuracies, epoch_recalls
 
 
 def test_model(model, criterion, dataloaders, dataset_sizes, device):
@@ -161,10 +189,14 @@ def test_model(model, criterion, dataloaders, dataset_sizes, device):
 
     dice_cf = Dice_coef()
     jaccard_cf = Jaccard_coef()
+    accuracy_cf = Accuracy()
+    recall_cf = Recall()
 
     total_test_loss = 0
     total_test_dice = 0
     total_test_jacc = 0
+    total_test_accuracy = 0
+    total_test_recall = 0
 
     with torch.no_grad():
 
@@ -178,19 +210,27 @@ def test_model(model, criterion, dataloaders, dataset_sizes, device):
             loss = criterion(outputs, labels)
             dice = dice_cf(torch.round(outputs), labels)
             jacc = jaccard_cf(torch.round(outputs), labels)
+            accuracy = accuracy_cf(torch.round(outputs), labels)
+            recall = recall_cf(torch.round(outputs), labels)
 
             total_test_loss += loss.item() * inputs.size(0)
             total_test_dice += dice.item() * inputs.size(0)
             total_test_jacc += jacc.item() * inputs.size(0)
+            total_test_accuracy += accuracy.item() * inputs.size(0)
+            total_test_recall += recall.item() * inputs.size(0)
 
     test_loss = total_test_loss / dataset_sizes["test"]
     test_dice = total_test_dice / dataset_sizes["test"]
     test_jacc = total_test_jacc / dataset_sizes["test"]
+    test_accuracy = total_test_accuracy / dataset_sizes["test"]
+    test_recall = total_test_recall / dataset_sizes["test"]
     print("\n\nResults on Test Set:")
     print("-" * 22)
     print(f"  Loss: {test_loss:.4f}")
     print(f"  Dice: {test_dice:.4f}")
     print(f"  Jaccard: {test_jacc:.4f}")
+    print(f"  Accuracy: {test_accuracy:.4f}")
+    print(f"  Recall: {test_recall:.4f}")
 
 
 def train_and_evaluate(
@@ -219,7 +259,7 @@ def train_and_evaluate(
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     lr_sched = lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
 
-    model_ft, epoch_losses, epoch_dices, epoch_jaccs = train_model(
+    model_ft, epoch_losses, epoch_dices, epoch_jaccs, epoch_accuracies, epoch_recalls = train_model(
         model,
         criterion,
         optimizer,
@@ -233,13 +273,15 @@ def train_and_evaluate(
 
     # Save training results
     save_results(
-        saves_path, weights_path, model_ft, epoch_losses, epoch_dices, epoch_jaccs
+        saves_path, weights_path, model_ft, epoch_losses, epoch_dices, epoch_jaccs, epoch_accuracies, epoch_recalls
     )
 
     # Plot evaluation metrics
     plot_metrics(epoch_losses, "Loss", "Epoch Losses", model_type, plots_path)
     plot_metrics(epoch_dices, "Dice", "Epoch Dices", model_type, plots_path)
     plot_metrics(epoch_jaccs, "Jaccard", "Epoch Jaccards", model_type, plots_path)
+    plot_metrics(epoch_accuracies, "Accuracy", "Epoch Accuracies", model_type, plots_path)
+    plot_metrics(epoch_recalls, "Recall", "Epoch Recalls", model_type, plots_path)
 
     test_model(model_ft, criterion, dataloaders, dataset_sizes, device)
 
