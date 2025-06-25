@@ -1,0 +1,31 @@
+seed: 4
+
+optimizer:
+  lr: 0.0001
+  weight_decay: 0.001
+
+lr_scheduler:
+  step_size: 10
+  gamma: 0.5
+
+training:
+  num_epochs: 30
+  device: 'cuda'
+  batch_size: 16
+  augmentation: True
+  model: "Attention_unet"   # Options: "Unet_Basic", "Unet_Modified", "Attention_unet"
+
+data:
+  gdrive_url: "https://drive.google.com/file/d/13CnsJQrApAs8VDU7H2EhCezDPNhfazrX/view?usp=sharing"
+  kaggle_dataset_name: "mateuszbuda/lgg-mri-segmentation"
+  train_ratio: 0.8
+  valid_ratio: 0.1
+
+
+paths:
+  saves_root: ./saves
+  weights_root: ./weights/Attention_unet
+  plots_root: ./plots
+  data:
+    dataset_dir: ./Dataset/unzipped
+    zip_path: ./Dataset/lgg-mri-segmentation.zip
